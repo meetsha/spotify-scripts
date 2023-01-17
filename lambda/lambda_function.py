@@ -1,3 +1,10 @@
+"""
+pip3 install --target ./package spotipy
+zip -r ../my-deployment-package.zip .
+zip my-deployment-package.zip lambda_function.py
+zip my-deployment-package.zip .cache-meetsha
+"""
+
 import spotipy
 from spotipy import util
 from pprint import pprint
