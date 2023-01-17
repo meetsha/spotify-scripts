@@ -1,6 +1,5 @@
 import spotipy
 from spotipy import util
-from spotipy.oauth2 import SpotifyOAuth
 from pprint import pprint
 import os
 from dotenv import load_dotenv
@@ -9,7 +8,6 @@ import time
 load_dotenv()
 
 masterPlaylistId = os.getenv('MASTER_PLAYLIST_ID')
-print
 
 def getSpotifyClient():
     token = util.prompt_for_user_token(username=os.getenv('AUTH_USERNAME'),
