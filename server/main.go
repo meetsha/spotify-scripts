@@ -8,13 +8,18 @@ import (
 )
 
 func masterPlaylistHandler(c *gin.Context) {
-	test := exec.Command("python test.py")
-	_, err := test.Output()
+	fmt.Print("hanlder called!")
+	test := exec.Command("python", "../python_scripts/test.py")
+	output, err := test.Output()
+
 
 	if err != nil {
+		fmt.Print("Error occured calling python!")
 		fmt.Print(err.Error())
 	}
-	
+
+	fmt.Print(string(output))
+
 	c.IndentedJSON(http.StatusOK, "Hey there! First REST API in Go")
 }
 
