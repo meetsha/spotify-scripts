@@ -1,5 +1,6 @@
-lambda/package/**
+package/**
 .cache-meetsha
+.spotify_cache
 
 **/.DS_Store
 
