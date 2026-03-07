@@ -44,6 +44,9 @@ def authenticate_spotify():
     logger.info(f"Connected to Spotify as: {user['display_name']}")
     return spotify, user['id']
 
+def extract_item(item):
+    return item.get('item') or item.get('track')
+
 def get_all_items(spotify, fetch_method):
     all_items = []
     results = fetch_method(limit=50)
@@ -59,7 +62,7 @@ def get_all_items(spotify, fetch_method):
 def filter_and_normalize(tracks):
     seen = {}
     for item in tracks:
-        track = item['track'] if 'track' in item else item.get('track')
+        track = extract_item(item)
         if track and track.get('type') == 'track' and not track.get('is_local'):
             key = (track['name'].lower(),
                    tuple(sorted(artist['name'].lower() for artist in track['artists'])),
@@ -74,7 +77,7 @@ def collect_tracks(spotify, playlists, master_playlist_id):
         if playlist['id'] == master_playlist_id:
             continue
         logger.info(f"Processing playlist: {playlist['name']}")
-        playlist_tracks = get_all_items(spotify, lambda limit: spotify.playlist_tracks(playlist['id'], limit=limit))
+        playlist_tracks = get_all_items(spotify, lambda limit: spotify.playlist_items(playlist['id'], limit=limit))
         all_tracks.extend(playlist_tracks)
 
     if INCLUDE_LIKED_SONGS:
@@ -90,8 +93,12 @@ def update_master_playlist(spotify, track_list, master_playlist_id):
     master_playlist = spotify.playlist(master_playlist_id)
     logger.info(f"Updating master playlist: {master_playlist['name']}")
 
-    existing_tracks_raw = get_all_items(spotify, lambda limit: spotify.playlist_tracks(master_playlist_id, limit=limit))
-    existing_tracks = [item['track']['uri'] for item in existing_tracks_raw if item.get('track')]
+    existing_tracks_raw = get_all_items(spotify, lambda limit: spotify.playlist_items(master_playlist_id, limit=limit))
+    existing_tracks = [
+        track['uri'] for item in existing_tracks_raw
+        for track in [extract_item(item)]
+        if track and track.get('type') == 'track' and track.get('uri')
+    ]
 
     to_add = list(set(track_list) - set(existing_tracks))
     to_remove = list(set(existing_tracks) - set(track_list))
@@ -116,13 +123,21 @@ def merge_punjabi_playlists(spotify):
     
     # Get tracks from both playlists
     punjabi_tracks_raw = get_all_items(
-        spotify, lambda limit: spotify.playlist_tracks(PUNJABI_PLAYLIST_ID, limit=limit))
+        spotify, lambda limit: spotify.playlist_items(PUNJABI_PLAYLIST_ID, limit=limit))
     punjabi_classic_tracks_raw = get_all_items(
-        spotify, lambda limit: spotify.playlist_tracks(PUNJABI_CLASSICS_PLAYLIST_ID, limit=limit))
+        spotify, lambda limit: spotify.playlist_items(PUNJABI_CLASSICS_PLAYLIST_ID, limit=limit))
     
     # Extract track URIs
-    punjabi_tracks = [item['track']['uri'] for item in punjabi_tracks_raw if item.get('track')]
-    punjabi_classic_tracks = [item['track']['uri'] for item in punjabi_classic_tracks_raw if item.get('track')]
+    punjabi_tracks = [
+        track['uri'] for item in punjabi_tracks_raw
+        for track in [extract_item(item)]
+        if track and track.get('type') == 'track' and track.get('uri')
+    ]
+    punjabi_classic_tracks = [
+        track['uri'] for item in punjabi_classic_tracks_raw
+        for track in [extract_item(item)]
+        if track and track.get('type') == 'track' and track.get('uri')
+    ]
     
     # Find tracks to add (classic tracks not in main playlist)
     to_add = list(set(punjabi_classic_tracks) - set(punjabi_tracks))

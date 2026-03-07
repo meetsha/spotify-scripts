@@ -1,2 +1,2 @@
-spotipy
+spotipy==2.26.0
 python-dotenv
