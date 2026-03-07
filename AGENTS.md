@@ -24,6 +24,20 @@ The script detects local execution (absence of `AWS_EXECUTION_ENV`) and automati
 ### AWS Lambda Deployment
 The script is designed to run as a Lambda handler via the `lambda_handler()` function. The `package/` directory contains pre-packaged dependencies for Lambda deployment, which is referenced in `.gitignore` and commit history mentions `my-deployment-package.zip`.
 
+Known working manual packaging steps:
+
+```bash
+rm -rf package
+rm -rf my-deployment-package.zip
+mkdir package
+pip3 install -r requirements.txt -t package/
+cp newStashMaintainer.py .spotify_cache package/
+cd package/
+zip -r ../my-deployment-package.zip .
+```
+
+Upload `my-deployment-package.zip` to the Lambda function via the AWS web console.
+
 ## Environment Variables
 
 Required environment variables (stored in `.env` for local development, or Lambda environment variables for production):
