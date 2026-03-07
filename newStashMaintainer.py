@@ -30,6 +30,7 @@ INCLUDE_LIKED_SONGS = os.getenv('SPOTIFY_INCLUDE_LIKED_SONGS', 'true').lower() =
 SCOPE = 'playlist-read-private playlist-modify-private playlist-modify-public user-library-read'
 
 RATE_LIMIT_SLEEP = 0.2
+PAGE_LIMIT = 50
 
 def authenticate_spotify():
     auth_manager = SpotifyOAuth(
@@ -49,7 +50,7 @@ def extract_item(item):
 
 def get_all_items(spotify, fetch_method):
     all_items = []
-    results = fetch_method(limit=50)
+    results = fetch_method(limit=PAGE_LIMIT)
     while results:
         all_items.extend(results['items'])
         if results['next']:
@@ -58,6 +59,13 @@ def get_all_items(spotify, fetch_method):
             results = None
         time.sleep(RATE_LIMIT_SLEEP)
     return all_items
+
+def extract_track_uris(items):
+    return [
+        track['uri'] for item in items
+        for track in [extract_item(item)]
+        if track and track.get('type') == 'track' and track.get('uri')
+    ]
 
 def filter_and_normalize(tracks):
     seen = {}
@@ -94,14 +102,12 @@ def update_master_playlist(spotify, track_list, master_playlist_id):
     logger.info(f"Updating master playlist: {master_playlist['name']}")
 
     existing_tracks_raw = get_all_items(spotify, lambda limit: spotify.playlist_items(master_playlist_id, limit=limit))
-    existing_tracks = [
-        track['uri'] for item in existing_tracks_raw
-        for track in [extract_item(item)]
-        if track and track.get('type') == 'track' and track.get('uri')
-    ]
+    existing_tracks = extract_track_uris(existing_tracks_raw)
 
-    to_add = list(set(track_list) - set(existing_tracks))
-    to_remove = list(set(existing_tracks) - set(track_list))
+    desired_set = set(track_list)
+    existing_set = set(existing_tracks)
+    to_add = list(desired_set - existing_set)
+    to_remove = list(existing_set - desired_set)
 
     logger.info(f"Tracks to add: {len(to_add)}")
     logger.info(f"Tracks to remove: {len(to_remove)}")
@@ -128,16 +134,8 @@ def merge_punjabi_playlists(spotify):
         spotify, lambda limit: spotify.playlist_items(PUNJABI_CLASSICS_PLAYLIST_ID, limit=limit))
     
     # Extract track URIs
-    punjabi_tracks = [
-        track['uri'] for item in punjabi_tracks_raw
-        for track in [extract_item(item)]
-        if track and track.get('type') == 'track' and track.get('uri')
-    ]
-    punjabi_classic_tracks = [
-        track['uri'] for item in punjabi_classic_tracks_raw
-        for track in [extract_item(item)]
-        if track and track.get('type') == 'track' and track.get('uri')
-    ]
+    punjabi_tracks = extract_track_uris(punjabi_tracks_raw)
+    punjabi_classic_tracks = extract_track_uris(punjabi_classic_tracks_raw)
     
     # Find tracks to add (classic tracks not in main playlist)
     to_add = list(set(punjabi_classic_tracks) - set(punjabi_tracks))
