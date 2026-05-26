@@ -3,7 +3,6 @@ import os
 import shutil
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import time
 import logging
 from dotenv import load_dotenv
 
@@ -41,9 +40,8 @@ if missing:
     raise SystemExit(f"Missing required environment variables: {', '.join(missing)}")
 
 SCOPE = 'playlist-read-private playlist-modify-private playlist-modify-public user-library-read'
-
-RATE_LIMIT_SLEEP = 0.2
 PAGE_LIMIT = 50
+
 
 def get_spotify_cache_path():
     if os.environ.get("AWS_EXECUTION_ENV") is None:
@@ -56,6 +54,7 @@ def get_spotify_cache_path():
         shutil.copyfile(package_cache_path, writable_cache_path)
 
     return writable_cache_path
+
 
 def authenticate_spotify():
     auth_manager = SpotifyOAuth(
@@ -70,8 +69,10 @@ def authenticate_spotify():
     logger.info(f"Connected to Spotify as: {user['display_name']}")
     return spotify, user['id']
 
+
 def extract_item(item):
     return item.get('item') or item.get('track')
+
 
 def get_all_items(spotify, fetch_method):
     all_items = []
@@ -82,8 +83,8 @@ def get_all_items(spotify, fetch_method):
             results = spotify.next(results)
         else:
             results = None
-        time.sleep(RATE_LIMIT_SLEEP)
     return all_items
+
 
 def get_playlist_items(spotify, playlist_id):
     return get_all_items(
@@ -95,12 +96,14 @@ def get_playlist_items(spotify, playlist_id):
         ),
     )
 
+
 def extract_track_uris(items):
     return [
         track['uri'] for item in items
         for track in [extract_item(item)]
         if track and track.get('type') == 'track' and track.get('uri')
     ]
+
 
 def filter_and_normalize(tracks):
     seen = {}
@@ -113,6 +116,7 @@ def filter_and_normalize(tracks):
             if key not in seen:
                 seen[key] = track['uri']
     return set(seen.values())
+
 
 def collect_tracks(spotify, playlists, master_playlist_id):
     all_tracks = []
@@ -130,6 +134,7 @@ def collect_tracks(spotify, playlists, master_playlist_id):
     unique_tracks = filter_and_normalize(all_tracks)
     logger.info(f"Collected {len(unique_tracks)} unique tracks")
     return list(unique_tracks)
+
 
 def update_master_playlist(spotify, track_list, master_playlist_id):
     master_playlist = spotify.playlist(master_playlist_id)
@@ -150,13 +155,12 @@ def update_master_playlist(spotify, track_list, master_playlist_id):
         batch = to_remove[i:i+100]
         spotify.playlist_remove_all_occurrences_of_items(master_playlist_id, batch)
         logger.info(f"Removed batch of {len(batch)} tracks")
-        time.sleep(RATE_LIMIT_SLEEP)
 
     for i in range(0, len(to_add), 100):
         batch = to_add[i:i+100]
         spotify.playlist_add_items(master_playlist_id, batch)
         logger.info(f"Added batch of {len(batch)} tracks")
-        time.sleep(RATE_LIMIT_SLEEP)
+
 
 def merge_punjabi_playlists(spotify):
     logger.info(f"Merging Punjabi playlists {PUNJABI_PLAYLIST_ID} and {PUNJABI_CLASSICS_PLAYLIST_ID}")
@@ -174,14 +178,13 @@ def merge_punjabi_playlists(spotify):
     
     logger.info(f"Adding {len(to_add)} classic tracks to main Punjabi playlist")
     
-    # Add tracks in batches of 100 to respect rate limits
+    # Add tracks in batches of 100 (Spotify API limit)
     for i in range(0, len(to_add), 100):
         batch = to_add[i:i+100]
         spotify.playlist_add_items(PUNJABI_PLAYLIST_ID, batch)
         logger.info(f"Added batch of {len(batch)} tracks")
-        time.sleep(RATE_LIMIT_SLEEP)
-    
-    
+
+
 def lambda_handler(event=None, context=None):
     try:
         spotify, user_id = authenticate_spotify()
@@ -205,6 +208,7 @@ def lambda_handler(event=None, context=None):
             'statusCode': 500,
             'body': json.dumps(f"Playlist update failed: {e}")
         }
+
 
 if __name__ == "__main__":
     lambda_handler()
