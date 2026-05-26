@@ -26,7 +26,19 @@ REDIRECT_URI = os.getenv('SPOTIFY_REDIRECT_URI')
 MASTER_PLAYLIST_ID = os.getenv('SPOTIFY_MASTER_PLAYLIST_ID')
 PUNJABI_PLAYLIST_ID = os.getenv('SPOTIFY_PUNJABI_ID')
 PUNJABI_CLASSICS_PLAYLIST_ID = os.getenv('SPOTIFY_PUNJABI_CLASSICS_ID')
-INCLUDE_LIKED_SONGS = os.getenv('SPOTIFY_INCLUDE_LIKED_SONGS', 'true').lower() == 'true'
+
+
+_REQUIRED_ENV_VARS = {
+    'SPOTIFY_CLIENT_ID': CLIENT_ID,
+    'SPOTIFY_CLIENT_SECRET': CLIENT_SECRET,
+    'SPOTIFY_REDIRECT_URI': REDIRECT_URI,
+    'SPOTIFY_MASTER_PLAYLIST_ID': MASTER_PLAYLIST_ID,
+    'SPOTIFY_PUNJABI_ID': PUNJABI_PLAYLIST_ID,
+    'SPOTIFY_PUNJABI_CLASSICS_ID': PUNJABI_CLASSICS_PLAYLIST_ID,
+}
+missing = [k for k, v in _REQUIRED_ENV_VARS.items() if not v]
+if missing:
+    raise SystemExit(f"Missing required environment variables: {', '.join(missing)}")
 
 SCOPE = 'playlist-read-private playlist-modify-private playlist-modify-public user-library-read'
 
@@ -111,10 +123,9 @@ def collect_tracks(spotify, playlists, master_playlist_id):
         playlist_tracks = get_playlist_items(spotify, playlist['id'])
         all_tracks.extend(playlist_tracks)
 
-    if INCLUDE_LIKED_SONGS:
-        logger.info("Processing Liked Songs")
-        liked_tracks = get_all_items(spotify, spotify.current_user_saved_tracks)
-        all_tracks.extend(liked_tracks)
+    logger.info("Processing Liked Songs")
+    liked_tracks = get_all_items(spotify, spotify.current_user_saved_tracks)
+    all_tracks.extend(liked_tracks)
 
     unique_tracks = filter_and_normalize(all_tracks)
     logger.info(f"Collected {len(unique_tracks)} unique tracks")
@@ -172,21 +183,28 @@ def merge_punjabi_playlists(spotify):
     
     
 def lambda_handler(event=None, context=None):
-    spotify, user_id = authenticate_spotify()
-    
-    playlists = get_all_items(spotify, spotify.current_user_playlists)
-    user_playlists = [p for p in playlists if p['owner']['id'] == user_id]
-    track_list = collect_tracks(spotify, user_playlists, MASTER_PLAYLIST_ID)
-    update_master_playlist(spotify, track_list, MASTER_PLAYLIST_ID)
-    logger.info("Master playlist update complete")
-    
-    merge_punjabi_playlists(spotify)
-    logger.info("Punjabi playlists merged")
-    
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Playlists updated successfully!')
-    }
+    try:
+        spotify, user_id = authenticate_spotify()
+        
+        playlists = get_all_items(spotify, spotify.current_user_playlists)
+        user_playlists = [p for p in playlists if p['owner']['id'] == user_id]
+        track_list = collect_tracks(spotify, user_playlists, MASTER_PLAYLIST_ID)
+        update_master_playlist(spotify, track_list, MASTER_PLAYLIST_ID)
+        logger.info("Master playlist update complete")
+        
+        merge_punjabi_playlists(spotify)
+        logger.info("Punjabi playlists merged")
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Playlists updated successfully!')
+        }
+    except Exception as e:
+        logger.exception("Playlist update failed")
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f"Playlist update failed: {e}")
+        }
 
 if __name__ == "__main__":
     lambda_handler()

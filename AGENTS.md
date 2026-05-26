@@ -48,7 +48,6 @@ Required environment variables (stored in `.env` for local development, or Lambd
 - `SPOTIFY_MASTER_PLAYLIST_ID` - ID of the master aggregation playlist
 - `SPOTIFY_PUNJABI_ID` - ID of the main Punjabi playlist
 - `SPOTIFY_PUNJABI_CLASSICS_ID` - ID of the Punjabi classics playlist to merge
-- `SPOTIFY_INCLUDE_LIKED_SONGS` - (optional, defaults to 'true') Whether to include liked songs in master playlist
 
 ## Architecture
 
@@ -64,7 +63,7 @@ Required environment variables (stored in `.env` for local development, or Lambd
 
 **`filter_and_normalize(tracks)`** - Deduplicates tracks based on normalized (name, artists, album) tuples. Filters out local files and non-track items.
 
-**`collect_tracks(spotify, playlists, master_playlist_id)`** - Aggregates all tracks from user playlists (excluding master playlist itself) and optionally liked songs
+**`collect_tracks(spotify, playlists, master_playlist_id)`** - Aggregates all tracks from user playlists (excluding master playlist itself) and liked songs
 
 **`update_master_playlist(spotify, track_list, master_playlist_id)`** - Syncs master playlist by:
   - Calculating diff between desired tracks and existing tracks
