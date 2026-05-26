@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import time
@@ -32,13 +33,25 @@ SCOPE = 'playlist-read-private playlist-modify-private playlist-modify-public us
 RATE_LIMIT_SLEEP = 0.2
 PAGE_LIMIT = 50
 
+def get_spotify_cache_path():
+    if os.environ.get("AWS_EXECUTION_ENV") is None:
+        return '.spotify_cache'
+
+    package_cache_path = os.path.join(os.environ.get('LAMBDA_TASK_ROOT', ''), '.spotify_cache')
+    writable_cache_path = '/tmp/.spotify_cache'
+
+    if not os.path.exists(writable_cache_path) and os.path.exists(package_cache_path):
+        shutil.copyfile(package_cache_path, writable_cache_path)
+
+    return writable_cache_path
+
 def authenticate_spotify():
     auth_manager = SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path='.spotify_cache'
+        cache_path=get_spotify_cache_path()
     )
     spotify = spotipy.Spotify(auth_manager=auth_manager)
     user = spotify.current_user()
@@ -59,6 +72,16 @@ def get_all_items(spotify, fetch_method):
             results = None
         time.sleep(RATE_LIMIT_SLEEP)
     return all_items
+
+def get_playlist_items(spotify, playlist_id):
+    return get_all_items(
+        spotify,
+        lambda limit: spotify.playlist_items(
+            playlist_id,
+            limit=limit,
+            additional_types=['track'],
+        ),
+    )
 
 def extract_track_uris(items):
     return [
@@ -85,7 +108,7 @@ def collect_tracks(spotify, playlists, master_playlist_id):
         if playlist['id'] == master_playlist_id:
             continue
         logger.info(f"Processing playlist: {playlist['name']}")
-        playlist_tracks = get_all_items(spotify, lambda limit: spotify.playlist_items(playlist['id'], limit=limit))
+        playlist_tracks = get_playlist_items(spotify, playlist['id'])
         all_tracks.extend(playlist_tracks)
 
     if INCLUDE_LIKED_SONGS:
@@ -101,7 +124,7 @@ def update_master_playlist(spotify, track_list, master_playlist_id):
     master_playlist = spotify.playlist(master_playlist_id)
     logger.info(f"Updating master playlist: {master_playlist['name']}")
 
-    existing_tracks_raw = get_all_items(spotify, lambda limit: spotify.playlist_items(master_playlist_id, limit=limit))
+    existing_tracks_raw = get_playlist_items(spotify, master_playlist_id)
     existing_tracks = extract_track_uris(existing_tracks_raw)
 
     desired_set = set(track_list)
@@ -128,10 +151,8 @@ def merge_punjabi_playlists(spotify):
     logger.info(f"Merging Punjabi playlists {PUNJABI_PLAYLIST_ID} and {PUNJABI_CLASSICS_PLAYLIST_ID}")
     
     # Get tracks from both playlists
-    punjabi_tracks_raw = get_all_items(
-        spotify, lambda limit: spotify.playlist_items(PUNJABI_PLAYLIST_ID, limit=limit))
-    punjabi_classic_tracks_raw = get_all_items(
-        spotify, lambda limit: spotify.playlist_items(PUNJABI_CLASSICS_PLAYLIST_ID, limit=limit))
+    punjabi_tracks_raw = get_playlist_items(spotify, PUNJABI_PLAYLIST_ID)
+    punjabi_classic_tracks_raw = get_playlist_items(spotify, PUNJABI_CLASSICS_PLAYLIST_ID)
     
     # Extract track URIs
     punjabi_tracks = extract_track_uris(punjabi_tracks_raw)
